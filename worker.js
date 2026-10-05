@@ -47,8 +47,12 @@ async function scores(request, env) {
   }
 }
 
-async function fetchPhoto(url) {
-  const response = await fetch(url, { cf: { cacheTtl: 86400, cacheEverything: true } });
+const PHOTO_USER_AGENT = 'ASL-Memory-Match/1.0 (https://github.com/jhurdich/memorymatch)';
+
+async function fetchPhoto(url, fromCommons = false) {
+  const headers = { 'User-Agent': PHOTO_USER_AGENT };
+  if (fromCommons) headers.Referer = 'https://commons.wikimedia.org/';
+  const response = await fetch(url, { headers, cf: { cacheTtl: 86400, cacheEverything: true } });
   if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) return null;
   return response;
 }
@@ -58,6 +62,7 @@ async function photo(request) {
   const term = (searchParams.get('term') || 'nature').trim().slice(0, 60);
   const seed = (searchParams.get('seed') || 'asl-memory-match').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 60) || 'asl-memory-match';
   let image = null;
+  let imageSource = 'wikimedia';
 
   try {
     const api = new URL('https://commons.wikimedia.org/w/api.php');
@@ -65,21 +70,24 @@ async function photo(request) {
       action: 'query', generator: 'search', gsrsearch: term, gsrnamespace: '6',
       gsrlimit: '8', prop: 'imageinfo', iiprop: 'url', iiurlwidth: '480', format: 'json', origin: '*'
     });
-    const result = await fetch(api);
+    const result = await fetch(api, {
+      headers: { 'User-Agent': PHOTO_USER_AGENT, 'Accept': 'application/json' }
+    });
     if (result.ok) {
       const data = await result.json();
       const pages = Object.values(data.query?.pages || {});
-      const candidate = pages.find(page => {
-        const candidateUrl = page.imageinfo?.[0]?.thumburl;
-        return candidateUrl && !/\.svg(?:\?|$)/i.test(candidateUrl) &&
-          new URL(candidateUrl).hostname === 'upload.wikimedia.org';
-      });
-      const imageUrl = candidate?.imageinfo?.[0]?.thumburl;
-      if (imageUrl) image = await fetchPhoto(imageUrl);
+      for (const page of pages) {
+        const imageUrl = page.imageinfo?.[0]?.thumburl;
+        if (!imageUrl || /\.svg(?:\?|$)/i.test(imageUrl) ||
+            new URL(imageUrl).hostname !== 'upload.wikimedia.org') continue;
+        image = await fetchPhoto(imageUrl, true);
+        if (image) break;
+      }
     }
   } catch { /* Fall back to a seeded photo. */ }
 
   if (!image) {
+    imageSource = 'picsum-fallback';
     try { image = await fetchPhoto(`https://picsum.photos/seed/asl-${seed}/480/480`); }
     catch { /* Return an image error response below. */ }
   }
@@ -88,7 +96,8 @@ async function photo(request) {
     headers: {
       'content-type': image.headers.get('content-type') || 'image/jpeg',
       'cache-control': 'public, max-age=86400, s-maxage=604800',
-      'x-content-type-options': 'nosniff'
+      'x-content-type-options': 'nosniff',
+      'x-photo-source': imageSource
     }
   });
 }
