@@ -49,9 +49,8 @@ async function scores(request, env) {
 
 const PHOTO_USER_AGENT = 'ASL-Memory-Match/1.0 (https://github.com/jhurdich/memorymatch)';
 
-async function fetchPhoto(url, fromCommons = false) {
+async function fetchPhoto(url) {
   const headers = { 'User-Agent': PHOTO_USER_AGENT };
-  if (fromCommons) headers.Referer = 'https://commons.wikimedia.org/';
   const response = await fetch(url, { headers, cf: { cacheTtl: 86400, cacheEverything: true } });
   if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) return null;
   return response;
@@ -80,11 +79,19 @@ async function photo(request) {
         const imageUrl = page.imageinfo?.[0]?.thumburl;
         if (!imageUrl || /\.svg(?:\?|$)/i.test(imageUrl) ||
             new URL(imageUrl).hostname !== 'upload.wikimedia.org') continue;
-        image = await fetchPhoto(imageUrl, true);
+        image = await fetchPhoto(imageUrl);
         if (image) break;
       }
     }
   } catch { /* Fall back to a seeded photo. */ }
+
+  if (!image) {
+    imageSource = 'loremflickr-fallback';
+    const lock = [...seed].reduce((value, char) => (value * 31 + char.charCodeAt(0)) >>> 0, 1);
+    try {
+      image = await fetchPhoto(`https://loremflickr.com/480/480/${encodeURIComponent(term)}?lock=${lock}`);
+    } catch { /* Use the final seeded photo fallback below. */ }
+  }
 
   if (!image) {
     imageSource = 'picsum-fallback';
