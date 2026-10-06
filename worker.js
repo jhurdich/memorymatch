@@ -12,6 +12,38 @@ function json(data, status = 200) {
   });
 }
 
+function constantTimeEqual(left, right) {
+  const a = new TextEncoder().encode(left);
+  const b = new TextEncoder().encode(right);
+  let mismatch = a.length ^ b.length;
+  const length = Math.max(a.length, b.length);
+  for (let i = 0; i < length; i++) mismatch |= (a[i] || 0) ^ (b[i] || 0);
+  return mismatch === 0;
+}
+
+async function resetScores(request, env) {
+  if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+  if (!env.LEADERBOARD_RESET_PASSWORD) {
+    return json({ error: 'Teacher reset is not configured. Ask the site administrator.' }, 503);
+  }
+  if (!env.DB) return json({ error: 'D1 binding DB is not connected.' }, 503);
+
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON.' }, 400); }
+  const password = body && typeof body.password === 'string' ? body.password : '';
+  if (!password || password.length > 256 ||
+      !constantTimeEqual(password, env.LEADERBOARD_RESET_PASSWORD)) {
+    return json({ error: 'Incorrect password.' }, 401);
+  }
+
+  try {
+    await env.DB.prepare('DELETE FROM scores').run();
+    return json({ ok: true });
+  } catch {
+    return json({ error: 'Could not reset the leaderboard.' }, 503);
+  }
+}
+
 async function scores(request, env) {
   if (!env.DB) return json({ error: 'D1 binding DB is not connected.' }, 503);
   if (request.method === 'GET') {
@@ -134,6 +166,7 @@ async function photo(request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/scores/reset') return resetScores(request, env);
     if (url.pathname === '/api/scores') return scores(request, env);
     if (url.pathname === '/api/photo' && request.method === 'GET') return photo(request);
     if (url.pathname === '/api/sign' && request.method === 'GET') return signVideo(request);
