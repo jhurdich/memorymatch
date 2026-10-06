@@ -19,5 +19,5 @@ npx wrangler deploy
 ```
 
 - D1 stores the shared top ten.
-- The photo endpoint searches Wikimedia Commons and uses a seeded Picsum photo if it cannot find a match. Photos require an internet connection.
+- Cards first search Wikimedia Commons for a matching photo. If that lookup fails, Cloudflare tries a tagged LoremFlickr photo and then a seeded Picsum image. Photos require an internet connection.
 - The leaderboard accepts public submissions without accounts. Names and score values are validated; anyone with the site URL can submit a score.
