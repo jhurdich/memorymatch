@@ -48,6 +48,33 @@ async function scores(request, env) {
 }
 
 const PHOTO_USER_AGENT = 'ASL-Memory-Match/1.0 (https://github.com/jhurdich/memorymatch)';
+const SIGN_USER_AGENT = 'ASL-Memory-Match/1.0 (https://github.com/jhurdich/memorymatch)';
+
+async function signVideo(request) {
+  const { searchParams } = new URL(request.url);
+  const slug = (searchParams.get('slug') || '').trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 60) {
+    return json({ error: 'Invalid sign word.' }, 400);
+  }
+
+  const pageUrl = `https://www.signasl.org/sign/${slug}`;
+  try {
+    const page = await fetch(pageUrl, {
+      headers: { 'User-Agent': SIGN_USER_AGENT, 'Accept': 'text/html' },
+      cf: { cacheTtl: 86400, cacheEverything: true }
+    });
+    if (!page.ok) return json({ error: 'No sign video was found.', pageUrl }, 404);
+
+    const html = await page.text();
+    // Sign ASL's own embed dialog uses the first ten-character video reference
+    // from the corresponding word page in its supported embed snippet.
+    const videoRef = html.match(/href=["']#([a-z0-9]{10})["']/i)?.[1];
+    if (!videoRef) return json({ error: 'No embeddable sign video was found.', pageUrl }, 404);
+    return json({ videoRef, pageUrl });
+  } catch {
+    return json({ error: 'Could not load the sign video right now.', pageUrl }, 502);
+  }
+}
 
 async function fetchPhoto(url) {
   const headers = { 'User-Agent': PHOTO_USER_AGENT };
@@ -109,6 +136,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/api/scores') return scores(request, env);
     if (url.pathname === '/api/photo' && request.method === 'GET') return photo(request);
+    if (url.pathname === '/api/sign' && request.method === 'GET') return signVideo(request);
     return env.ASSETS.fetch(request);
   }
 };
