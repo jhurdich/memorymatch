@@ -19,5 +19,6 @@ npx wrangler deploy
 ```
 
 - D1 stores the shared top ten.
-- Cards first search Wikimedia Commons for a matching photo. If that lookup fails, Cloudflare tries a tagged LoremFlickr photo and then a seeded Picsum image. Photos require an internet connection.
+- Every deck pairs each meaning photo with an ASL sign card. Sign cards open the matching word page in the Sign ASL video dictionary; clips play on that site and may show regional or contextual variants.
+- Meaning photos search Wikimedia Commons first. Cloudflare tries a term-tagged LoremFlickr photo if needed; the browser uses the matching emoji only if both photo sources are unavailable. Photos require an internet connection.
 - The leaderboard accepts public submissions without accounts. Names and score values are validated; anyone with the site URL can submit a score.

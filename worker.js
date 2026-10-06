@@ -93,11 +93,6 @@ async function photo(request) {
     } catch { /* Use the final seeded photo fallback below. */ }
   }
 
-  if (!image) {
-    imageSource = 'picsum-fallback';
-    try { image = await fetchPhoto(`https://picsum.photos/seed/asl-${seed}/480/480`); }
-    catch { /* Return an image error response below. */ }
-  }
   if (!image) return new Response('Photo unavailable', { status: 502, headers: { 'cache-control': 'no-store' } });
   return new Response(image.body, {
     headers: {
